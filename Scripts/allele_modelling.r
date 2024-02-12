@@ -1,6 +1,9 @@
 # Load Libraries
 library(ggplot2)
 library(ggpubr)
+library(tibble)
+library(sjPlot)
+library(dplyr)
 
 #Load in Data 
 data <- read.csv("/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_PhenotypicSelection/Data/csv/phenotype_selection.csv")
@@ -751,17 +754,40 @@ combined <- rbind(all, strat,yield)
 combined <- combined[!combined$Trait == "pollen_avg_std", ]
 
 # Run a simple anova to compare the two datasets
+
+anova_df <- data.frame(Predictors = character(), Df = numeric(), Sum_Sq = numeric(), F_value = numeric(), Pr = numeric(), Response = character(), stringsAsFactors = FALSE)
 for(trait in trait_list){
-    print(anova(lm(Generations ~ Type, data = combined[combined$Trait == trait, ])))
+    anova <- anova(lm(Generations ~ Type + Density + Type * Density, data = combined[combined$Trait == trait, ]))
+    anova$Predictors <- rownames(anova)
+    anova <- anova[,c(6,1,2,4,5)]
+    anova$Response <- ifelse(anova$Predictors == "Type", trait, NA)
+    anova_df <- rbind(anova_df,anova)
 }
+
+anova_df <- anova_df %>%
+    mutate(Response = case_when(
+        Response == trait_list[2] ~ "Flowering Date",
+        Response == trait_list[3] ~ "Height at Flowering",
+        Response == trait_list[6] ~ "Final Height",
+        Response == trait_list[1] ~ "# Flowers",
+        Response == trait_list[8] ~ "Leaf Area",
+        Response == trait_list[5] ~ "Early Growth",
+        Response == trait_list[4] ~ "Node Number",
+        Response == trait_list[7] ~ "Biomass",
+        TRUE ~ Response
+    ))
+
+anova_df <- anova_df[, c(6, 1, 2, 3, 4, 5)]
+
+# Create a dataframe of the anova results
+tab_df(anova_df,file = "/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_PhenotypicSelection/Results/anova_results_SIM.doc")
 
 p <- ggplot(combined, aes(x = Trait, y = Generations, fill = Type)) +
     geom_boxplot() +
     theme_light(base_size = 12, base_family = "Times New Roman") +
     labs(x = NULL, y = "Generations", title = NULL) +
     scale_x_discrete(labels = c("Flowering\nDate", "Height at\nFlowering", "Final\nHeight", "# Flowers", "Leaf\nArea", "Early\nGrowth", "Node\nNumber", "Biomass")) +
-    theme(legend.position = c(0.9, 0.8), axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12)) +
-    scale_fill_manual(values = c("blue", "purple", "red"))
-
-# Save the plot
+    theme(legend.position = c(0.85, 0.8), axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12), legend.text = element_text(size = 12)) +
+    scale_fill_manual(values = c("#7171ef", "#c477f3", "#f265a4"), labels = c("Average Selection", "Proportional Weighting", "Yield Weighting"))
+# Save the plot#5555f1
 ggsave("/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_PhenotypicSelection/Results/fixation_comparison.pdf", p, width = 10, height = 6, units = "in", dpi = 300, device = cairo_pdf)
